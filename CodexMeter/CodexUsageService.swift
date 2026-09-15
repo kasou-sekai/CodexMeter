@@ -17,6 +17,9 @@ final class CodexUsageService: ObservableObject {
     @Published private(set) var isTokenUsageUnavailable = false
     @Published private(set) var tokenUsageErrorMessage: String?
     @Published private(set) var rateLimitResetCredits: CodexRateLimitResetCreditsSummary?
+    @Published private(set) var purchasedCredits: CodexPurchasedCreditsSnapshot?
+    @Published private(set) var prefersFiveHourMenuBarWindow = false
+    @Published private(set) var criticalMenuBarRotationIndex = 0
 
     private enum RequestKind: Equatable {
         case initialize
@@ -43,6 +46,9 @@ final class CodexUsageService: ObservableObject {
     private var refreshTimeout: DispatchWorkItem?
     private var usageTimeout: DispatchWorkItem?
     private var restartWorkItem: DispatchWorkItem?
+    private var fiveHourPreferenceWorkItem: DispatchWorkItem?
+    private var criticalRotationTimer: Timer?
+    private var criticalWindowIDs: [String] = []
     private var didInitialize = false
     private var didAttemptAccountRecovery = false
     private var rateLimitRequestSources: [Int: QuotaSampleSource] = [:]
@@ -507,6 +513,10 @@ final class CodexUsageService: ObservableObject {
         isRefreshInFlight = false
 
         // Never keep the previous account's quota visible after an explicit auth change.
+        fiveHourPreferenceWorkItem?.cancel()
+        fiveHourPreferenceWorkItem = nil
+        prefersFiveHourMenuBarWindow = false
+        stopCriticalMenuBarRotation()
         windows = []
         planType = nil
         lastUpdated = nil
@@ -517,6 +527,7 @@ final class CodexUsageService: ObservableObject {
         isTokenUsageUnavailable = false
         tokenUsageErrorMessage = nil
         rateLimitResetCredits = nil
+        purchasedCredits = nil
         historyAccountKey = nil
         hasPendingAccountBoundary = true
         history.deactivateAccount()
@@ -612,10 +623,13 @@ final class CodexUsageService: ObservableObject {
         }
 
         let updatedAt = Date()
+        updateFiveHourMenuBarPreference(from: windows, to: parsed)
+        updateCriticalMenuBarRotation(for: parsed)
         windows = parsed
         rateLimitResetCredits = CodexRateLimitResetCreditsSummary.decode(
             fromRateLimitsResult: result
         )
+        purchasedCredits = CodexPurchasedCreditsSnapshot.decode(fromRateLimitsResult: result)
         isLoading = false
         isRefreshInFlight = false
         isStale = false
@@ -653,6 +667,61 @@ final class CodexUsageService: ObservableObject {
         }
         usageRequestID = id
         scheduleUsageTimeout(for: id)
+    }
+
+    private func updateFiveHourMenuBarPreference(
+        from previousWindows: [CodexUsageWindow],
+        to currentWindows: [CodexUsageWindow]
+    ) {
+        guard let current = currentWindows.first(where: { $0.windowDurationMins == 5 * 60 }),
+              let previous = previousWindows.first(where: { $0.historyID == current.historyID }),
+              current.usedPercent != previous.usedPercent else {
+            return
+        }
+
+        fiveHourPreferenceWorkItem?.cancel()
+        prefersFiveHourMenuBarWindow = true
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.prefersFiveHourMenuBarWindow = false
+            self?.fiveHourPreferenceWorkItem = nil
+        }
+        fiveHourPreferenceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3 * 60, execute: workItem)
+    }
+
+    private func updateCriticalMenuBarRotation(for windows: [CodexUsageWindow]) {
+        let windowIDs = windows
+            .filter { $0.remainingPercent < 10 }
+            .map(\.historyID)
+
+        if windowIDs != criticalWindowIDs {
+            criticalMenuBarRotationIndex = 0
+            criticalWindowIDs = windowIDs
+        }
+
+        guard windowIDs.count > 1 else {
+            criticalRotationTimer?.invalidate()
+            criticalRotationTimer = nil
+            return
+        }
+        guard criticalRotationTimer == nil else { return }
+
+        let timer = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.criticalMenuBarRotationIndex += 1
+            }
+        }
+        timer.tolerance = 0.5
+        RunLoop.main.add(timer, forMode: .common)
+        criticalRotationTimer = timer
+    }
+
+    private func stopCriticalMenuBarRotation() {
+        criticalRotationTimer?.invalidate()
+        criticalRotationTimer = nil
+        criticalWindowIDs = []
+        criticalMenuBarRotationIndex = 0
     }
 
     private func parseTokenUsage(_ result: [String: Any]) {
@@ -887,9 +956,12 @@ final class CodexUsageService: ObservableObject {
 
     deinit {
         refreshTimer?.invalidate()
+        criticalRotationTimer?.invalidate()
         refreshTimeout?.cancel()
         usageTimeout?.cancel()
         restartWorkItem?.cancel()
+        fiveHourPreferenceWorkItem?.cancel()
+        criticalRotationTimer?.invalidate()
         clearAppServerResources(terminate: true)
     }
 }

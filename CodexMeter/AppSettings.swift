@@ -305,17 +305,20 @@ final class AppSettings: ObservableObject {
             if appearanceDefaultsVersion < 2 {
                 migrated = migrated.migratingLegacyTimeColor()
             }
+            if appearanceDefaultsVersion < 3 {
+                migrated = migrated.migratingSemanticQuotaColor()
+            }
             let normalized = migrated.normalized()
             developerAppearance = normalized
 
-            if appearanceDefaultsVersion < 2,
+            if appearanceDefaultsVersion < 3,
                let migratedData = try? JSONEncoder().encode(normalized) {
                 defaults.set(migratedData, forKey: Keys.developerAppearance)
             }
         } else {
             developerAppearance = .acceptedV1
         }
-        defaults.set(2, forKey: Keys.developerAppearanceDefaultsVersion)
+        defaults.set(3, forKey: Keys.developerAppearanceDefaultsVersion)
         developerPreviewEnabled = defaults.bool(forKey: Keys.developerPreviewEnabled)
         developerPreviewPreset = DeveloperPreviewPreset(
             rawValue: defaults.string(forKey: Keys.developerPreviewPreset) ?? ""

@@ -139,7 +139,10 @@ struct DeveloperOptionsView: View {
                         style: settings.menuBarStyle,
                         attentionLevel: previewSnapshot.attentionLevel,
                         isStale: previewSnapshot.isStale,
-                        appearance: settings.developerAppearance
+                        appearance: settings.developerAppearance,
+                        timeRingColor: settings.developerAppearance.timeColor(
+                            forDurationMins: 5 * 60
+                        )
                     )
                     Spacer()
                 }
@@ -345,6 +348,20 @@ struct DeveloperOptionsView: View {
         GroupBox(L10n.string("developer.colors")) {
             VStack(alignment: .leading, spacing: 10) {
                 colorPicker(
+                    L10n.string("developer.five_hour_time_color"),
+                    selection: optionalAppearanceColorBinding(
+                        \.fiveHourTimeColor,
+                        fallback: .teal
+                    )
+                )
+                colorPicker(
+                    L10n.string("developer.weekly_time_color"),
+                    selection: optionalAppearanceColorBinding(
+                        \.weeklyTimeColor,
+                        fallback: .purple
+                    )
+                )
+                colorPicker(
                     L10n.string("developer.normal_color"),
                     selection: appearanceBinding(\.normalColor)
                 )
@@ -450,6 +467,20 @@ struct DeveloperOptionsView: View {
                 Text(color.localizedName).tag(color)
             }
         }
+    }
+
+    private func optionalAppearanceColorBinding(
+        _ keyPath: WritableKeyPath<MenuBarAppearance, MenuBarColorChoice?>,
+        fallback: MenuBarColorChoice
+    ) -> Binding<MenuBarColorChoice> {
+        Binding(
+            get: { settings.developerAppearance[keyPath: keyPath] ?? fallback },
+            set: { value in
+                var updated = settings.developerAppearance
+                updated[keyPath: keyPath] = value
+                settings.developerAppearance = updated.normalized()
+            }
+        )
     }
 
     private func copyConfiguration() {

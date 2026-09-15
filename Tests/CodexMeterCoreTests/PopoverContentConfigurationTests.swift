@@ -76,6 +76,110 @@ final class PopoverContentConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.selectedMenuBarWindow(from: [fiveHour, weekly]), weekly)
     }
 
+    func testRecentFiveHourUsageTemporarilyOverridesAutomaticSelection() {
+        let configuration = PopoverContentConfiguration.defaultValue
+        let fiveHour = makeWindow(id: "codex-primary", name: "5h", duration: 300, used: 20)
+        let weekly = makeWindow(
+            id: "codex-secondary",
+            name: "Weekly quota",
+            duration: 10_080,
+            used: 90
+        )
+
+        XCTAssertEqual(
+            configuration.selectedMenuBarWindow(
+                from: [fiveHour, weekly],
+                prefersFiveHourWindow: true
+            ),
+            fiveHour
+        )
+    }
+
+    func testSingleCriticalWindowOverridesRecentFiveHourUsage() {
+        let configuration = PopoverContentConfiguration.defaultValue
+        let fiveHour = makeWindow(id: "codex-primary", name: "5h", duration: 300, used: 20)
+        let weekly = makeWindow(
+            id: "codex-secondary",
+            name: "Weekly quota",
+            duration: 10_080,
+            used: 91
+        )
+
+        XCTAssertEqual(
+            configuration.selectedMenuBarWindow(
+                from: [fiveHour, weekly],
+                prefersFiveHourWindow: true
+            ),
+            weekly
+        )
+    }
+
+    func testCriticalWindowsRotateByProvidedIndex() {
+        let configuration = PopoverContentConfiguration.defaultValue
+        let fiveHour = makeWindow(id: "codex-primary", name: "5h", duration: 300, used: 91)
+        let weekly = makeWindow(
+            id: "codex-secondary",
+            name: "Weekly quota",
+            duration: 10_080,
+            used: 95
+        )
+
+        XCTAssertEqual(
+            configuration.selectedMenuBarWindow(
+                from: [fiveHour, weekly],
+                criticalRotationIndex: 0
+            ),
+            fiveHour
+        )
+        XCTAssertEqual(
+            configuration.selectedMenuBarWindow(
+                from: [fiveHour, weekly],
+                criticalRotationIndex: 1
+            ),
+            weekly
+        )
+    }
+
+    func testExplicitSelectionOverridesRecentFiveHourUsage() {
+        var configuration = PopoverContentConfiguration.defaultValue
+        let fiveHour = makeWindow(id: "codex-primary", name: "5h", duration: 300, used: 20)
+        let weekly = makeWindow(
+            id: "codex-secondary",
+            name: "Weekly quota",
+            duration: 10_080,
+            used: 90
+        )
+        configuration.menuBarQuotaWindowID = weekly.historyID
+
+        XCTAssertEqual(
+            configuration.selectedMenuBarWindow(
+                from: [fiveHour, weekly],
+                prefersFiveHourWindow: true
+            ),
+            weekly
+        )
+    }
+
+    func testExplicitSelectionOverridesCriticalRotation() {
+        var configuration = PopoverContentConfiguration.defaultValue
+        let fiveHour = makeWindow(id: "codex-primary", name: "5h", duration: 300, used: 95)
+        let weekly = makeWindow(
+            id: "codex-secondary",
+            name: "Weekly quota",
+            duration: 10_080,
+            used: 92
+        )
+        configuration.menuBarQuotaWindowID = weekly.historyID
+
+        XCTAssertEqual(
+            configuration.selectedMenuBarWindow(
+                from: [fiveHour, weekly],
+                criticalRotationIndex: 0
+            ),
+            weekly
+        )
+    }
+
     func testAutomaticSelectionUsesLowestRemainingAcrossWeeklyBuckets() {
         let configuration = PopoverContentConfiguration.defaultValue
         let reserve = makeWindow(

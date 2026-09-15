@@ -39,18 +39,21 @@ visible at a glance.
 
 ## Features
 
-- Shows a selected Codex quota directly in the macOS menu bar, with automatic
-  fallback to the quota with the lowest remaining percentage.
-- Uses two concentric progress rings:
-  - outer ring: remaining quota;
-  - inner ring: remaining time before reset.
+- Shows a selected Codex quota directly in the macOS menu bar. Automatic mode
+  prioritizes any quota below 10%, rotates every 10 seconds when several are
+  below 10%, then prefers a recently active 5-hour quota before falling back to
+  the quota with the lowest remaining percentage.
+- Shows quota windows with concentric remaining-quota and remaining-time rings.
 - Highlights normal, over-pace, and low-quota states without relying on color
   alone.
-- Displays the standard 5-hour and weekly Codex quota windows by default, with
-  reset countdowns and detailed progress bars.
-- Shows available banked Codex rate-limit resets as one compact lifetime
-  progress bar and expiration time per reset. This view is read-only and cannot
-  redeem a reset.
+- Displays the standard 5-hour and weekly Codex quota windows side by side with
+  equal-width rings. Their compact labels are “5H limit” and “Weekly limit.”
+- In automatic menu-bar mode, temporarily prioritizes the 5-hour window for
+  three minutes after its remaining quota changes, then returns to the quota with less
+  remaining capacity. Explicit menu-bar selections remain fixed.
+- Shows available banked Codex rate-limit resets on one compact 30-day timeline.
+  Expiration points progress from normal to warning inside 15 days and critical
+  inside 7 days. This view is read-only and cannot redeem a reset.
 - Compares remaining quota with remaining time to indicate whether consumption
   is on pace.
 - Refreshes on launch, every 60 seconds, after a Codex rate-limit update, and on
@@ -74,7 +77,7 @@ visible at a glance.
   popover shows Reset Opportunities, Quota History, and Token Activity while
   keeping the GPT-Reserve weekly quota hidden.
 - Includes developer options with presets, custom quota/time sliders, live
-  preview, safe appearance controls,
+  preview, separate 5-hour and weekly remaining-time colors, safe appearance controls,
   deterministic quota-state presets, JSON configuration export, and a one-click
   reset to the accepted 1.0 appearance. Developer-only test data can populate
   30 days of quota history and simulate an available app update.
@@ -98,6 +101,8 @@ visible at a glance.
   keeps the rule and date centered across every range, and reveals its exact day
   or grouped week/month plus compact token count.
 - Shows optional daily and summary token activity from `account/usage/read`
+- Shows the App Server's purchased-credit balance beside the quota rings, with
+  the equivalent US-dollar balance at 25 credits per dollar
   when the current Codex account supports it.
 - Accumulates returned daily token buckets locally, clears them on an explicit
   account change, and supports 7-, 30-, 90-day, one-year, or unlimited local

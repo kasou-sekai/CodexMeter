@@ -70,7 +70,9 @@ struct MenuBarAppearance: Codable, Equatable {
     var barWidth = 26.0
     var barHeight = 3.0
 
-    var normalColor = MenuBarColorChoice.system
+    var normalColor = MenuBarColorChoice.green
+    var fiveHourTimeColor: MenuBarColorChoice?
+    var weeklyTimeColor: MenuBarColorChoice?
     var warningColor = MenuBarColorChoice.yellow
     var criticalColor = MenuBarColorChoice.red
     var timeColor = MenuBarColorChoice.brightBlue
@@ -81,6 +83,17 @@ struct MenuBarAppearance: Codable, Equatable {
     var staleIndicatorPlacement = StaleIndicatorPlacement.trailing
 
     static let acceptedV1 = MenuBarAppearance()
+
+    func timeColor(forDurationMins durationMins: Int?) -> MenuBarColorChoice {
+        switch durationMins {
+        case 5 * 60:
+            fiveHourTimeColor ?? .teal
+        case 7 * 24 * 60:
+            weeklyTimeColor ?? .purple
+        default:
+            timeColor
+        }
+    }
 
     func migratingLegacyRingDefaults() -> MenuBarAppearance {
         var result = self
@@ -97,6 +110,14 @@ struct MenuBarAppearance: Codable, Equatable {
         var result = self
         if result.timeColor == .blue {
             result.timeColor = .brightBlue
+        }
+        return result
+    }
+
+    func migratingSemanticQuotaColor() -> MenuBarAppearance {
+        var result = self
+        if result.normalColor == .system {
+            result.normalColor = .green
         }
         return result
     }

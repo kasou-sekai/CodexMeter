@@ -59,6 +59,19 @@ struct CodexRateLimitResetCredit: Identifiable, Equatable, Sendable, Decodable {
         return .normal
     }
 
+    func expirationAttentionLevel(at date: Date) -> QuotaAttentionLevel? {
+        guard let expiresAt, expiresAt > date else { return nil }
+
+        let remainingDays = expiresAt.timeIntervalSince(date) / (24 * 60 * 60)
+        if remainingDays > 15 {
+            return .normal
+        }
+        if remainingDays >= 7 {
+            return .warning
+        }
+        return .critical
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id
         case title

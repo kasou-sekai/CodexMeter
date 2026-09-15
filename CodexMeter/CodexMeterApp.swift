@@ -48,7 +48,10 @@ struct CodexMeterApp: App {
                 style: settings.menuBarStyle,
                 attentionLevel: menuBarSnapshot.attentionLevel,
                 isStale: menuBarSnapshot.isStale,
-                appearance: settings.developerAppearance
+                appearance: settings.developerAppearance,
+                timeRingColor: settings.developerAppearance.timeColor(
+                    forDurationMins: menuBarWindow?.windowDurationMins
+                )
             )
         }
         .menuBarExtraStyle(.window)
@@ -112,7 +115,9 @@ struct CodexMeterApp: App {
         }
 
         let window = settings.popoverContent.selectedMenuBarWindow(
-            from: usageService.windows
+            from: usageService.windows,
+            prefersFiveHourWindow: usageService.prefersFiveHourMenuBarWindow,
+            criticalRotationIndex: usageService.criticalMenuBarRotationIndex
         )
         return MenuBarPreviewSnapshot(
             remainingPercent: window?.remainingPercent,
@@ -121,6 +126,14 @@ struct CodexMeterApp: App {
                 ?? (usageService.isLoading ? "…" : "--"),
             attentionLevel: window?.attentionLevel(at: Date()) ?? .normal,
             isStale: usageService.isStale
+        )
+    }
+
+    private var menuBarWindow: CodexUsageWindow? {
+        settings.popoverContent.selectedMenuBarWindow(
+            from: usageService.windows,
+            prefersFiveHourWindow: usageService.prefersFiveHourMenuBarWindow,
+            criticalRotationIndex: usageService.criticalMenuBarRotationIndex
         )
     }
 }

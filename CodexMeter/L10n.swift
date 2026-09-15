@@ -32,6 +32,15 @@ enum L10n {
         return formatter.string(from: date)
     }
 
+    static func formattedShortDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter.string(from: date)
+    }
+
     static func formattedInteger(_ value: Int64) -> String {
         let formatter = NumberFormatter()
         formatter.locale = locale

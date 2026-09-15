@@ -11,6 +11,7 @@ struct MenuBarProgressView: View {
     let attentionLevel: QuotaAttentionLevel
     let isStale: Bool
     let appearance: MenuBarAppearance
+    let timeRingColor: MenuBarColorChoice
 
     var body: some View {
         Image(nsImage: statusImage)
@@ -149,7 +150,7 @@ struct MenuBarProgressView: View {
                 )
                 drawProgressBar(
                     value: remainingTimePercent,
-                    color: appearance.timeColor.nsColor,
+                    color: timeRingColor.nsColor,
                     in: NSRect(
                         x: barX,
                         y: centerY - totalHeight / 2,
@@ -243,7 +244,7 @@ struct MenuBarProgressView: View {
             radius: innerRadius,
             lineWidth: innerWidth,
             value: nil,
-            color: appearance.timeColor.nsColor.withAlphaComponent(
+            color: timeRingColor.nsColor.withAlphaComponent(
                 CGFloat(appearance.trackOpacity)
             ),
             startAngle: appearance.ringStartAngle
@@ -253,7 +254,7 @@ struct MenuBarProgressView: View {
             radius: innerRadius,
             lineWidth: innerWidth,
             value: remainingTimePercent,
-            color: appearance.timeColor.nsColor,
+            color: timeRingColor.nsColor,
             startAngle: appearance.ringStartAngle
         )
     }

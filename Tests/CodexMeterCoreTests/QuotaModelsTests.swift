@@ -155,7 +155,21 @@ final class QuotaModelsTests: XCTestCase {
 
         XCTAssertEqual(appearance.outerRingStrokeWidth, 3)
         XCTAssertEqual(appearance.innerRingStrokeWidth, 2)
+        XCTAssertEqual(appearance.normalColor, .green)
+        XCTAssertEqual(appearance.timeColor(forDurationMins: 300), .teal)
+        XCTAssertEqual(appearance.timeColor(forDurationMins: 10_080), .purple)
         XCTAssertEqual(appearance.timeColor, .brightBlue)
+    }
+
+    func testLegacySystemQuotaColorMigratesToSemanticGreen() {
+        var legacy = MenuBarAppearance.acceptedV1
+        legacy.normalColor = .system
+
+        XCTAssertEqual(legacy.migratingSemanticQuotaColor().normalColor, .green)
+
+        var custom = legacy
+        custom.normalColor = .teal
+        XCTAssertEqual(custom.migratingSemanticQuotaColor().normalColor, .teal)
     }
 
     func testLegacyRingDefaultsMigrateWithoutChangingCustomValues() {

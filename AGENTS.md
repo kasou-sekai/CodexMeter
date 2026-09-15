@@ -48,8 +48,12 @@ has changed.
 
 - `CodexMeterApp.swift` owns the `MenuBarExtra` and shared usage service.
 - `ContentView.swift` renders quota details and user actions.
-  Its quota and time progress bars use the same configurable status and time
-  colors as the menu bar indicator. The popover also presents compact weekly
+  Its compact horizontal quota summary uses concentric rings for remaining
+  quota and reset time. Each quota metric uses a short duration label without
+  repeating a “limit” label. Reset
+  opportunities have a compact title/count header and appear as expiration
+  points on one fixed 30-day axis. The popover
+  also presents compact weekly
   quota history and 30-day token activity as separate, divider-separated links
   to the full Usage History window. Render optional popover sections from the
   user's stored order. Bound the popover to the visible height of its current
@@ -57,6 +61,12 @@ has changed.
   dynamic status and content area scrolls when it exceeds the available space.
   Keep those regions as true vertical siblings and clip the middle scroll view
   so translucent fixed controls never reveal content rendered underneath them.
+  Keep the two standard quota summaries tightly grouped as equal-width rings,
+  using “5H limit” and “Weekly limit” in English. The purchased-credit metric
+  is text-only: show the equivalent dollar amount large, the numeric credit
+  value below it, and a small Balance/余额 caption aligned with the quota
+  reset-countdown baseline. Center the two numeric rows in the space above
+  that shared baseline.
 - `MenuBarProgressView.swift` draws the selected ring, bar, percentage, and
   caption style into an original-color `NSImage`. Keep the status-item label
   free of nested dynamic layout containers. Omit time indicators when reset
@@ -113,9 +123,12 @@ has changed.
   used by the menu bar indicator. The default layout shows the standard
   five-hour quota, standard weekly quota, Reset Opportunities, Quota History,
   and Token Activity; the GPT-Reserve weekly bucket starts hidden.
-  A missing menu bar selection means automatic mode and selects the returned
-  quota window with the lowest remaining percentage; an explicitly chosen
-  window remains selected. Quota History separately defaults to the standard
+  A missing menu bar selection means automatic mode. It prioritizes windows
+  below 10% remaining and rotates among multiple critical windows every 10
+  seconds. Otherwise, any five-hour quota change prioritizes that window for
+  three minutes before returning to the lowest remaining percentage. An
+  explicitly chosen window remains selected.
+  Quota History separately defaults to the standard
   `codex` weekly bucket.
   `PopoverCustomizationView.swift` presents these controls and a live preview in
   an independent Window so picker and button interactions survive popover focus
@@ -267,31 +280,36 @@ Codex App Server.
 - Separate quota windows, Token Activity, Settings, and the footer with dividers
   in the popover. Do not add nested card backgrounds around quota or token
   sections; the menu-bar window already provides the containing surface.
-- In automatic mode, display the lowest remaining percentage across returned
-  quota windows so the most constrained limit is always visible. Preserve an
-  explicit quota-window selection even when another window becomes lower.
+- In automatic mode, first select any quota window below 10% remaining. Rotate
+  among multiple windows below 10% every 10 seconds. Otherwise prioritize the
+  five-hour window for three minutes after any change in its returned
+  `usedPercent`, then display the lowest remaining percentage. Preserve an
+  explicit quota-window selection throughout.
 - Label the percentage as Codex remaining quota. Visual state priority is:
   below 20% is critical/red; otherwise above ideal pace is warning/yellow;
-  otherwise use the normal system/accent color. Apply the same rule to the
-  detail quota bar.
+  otherwise use the normal green color. Apply the same rule to the outer detail
+  quota ring. The inner ring represents remaining time and uses a duration-
+  specific color independently of quota status.
 - In the menu bar, the outer ring represents remaining quota and follows the
   quota state color. The inner ring represents remaining time in blue. Do not
   draw the inner ring when the server does not provide enough reset timing data.
 - Resolve dynamic AppKit colors against SwiftUI's current color scheme before
-  passing them to native progress controls. Also key each metric
-  `ProgressView` to `colorScheme` so AppKit cannot reuse a control whose tint it
-  reset during a live appearance change and leave it at accent blue.
+  passing them to native controls.
 - Show a localized countdown to reset in the detail footer instead of repeating
   the used percentage.
-- When `rateLimitResetCredits` is present, show its confirmed available count in
-  a read-only, divider-separated popover section. Show usable detail rows with
-  backend title, description, grant time, and expiration when provided. For a
-  valid grant-to-expiration interval, draw a minute-updated remaining-lifetime
-  progress bar that starts at 100% when granted and reaches 0% at expiration.
-  Use the quota bar's configurable normal color while at least 20% remains,
-  warning/yellow below 20%, and critical/red below 10%.
-  Omit the bar instead of guessing when expiration or a valid interval is
-  missing. Do not expose a redemption action or interpret missing data as zero.
+- When a purchased-credit snapshot is present, add a third compact text metric
+  beside the quota rings. Show the backend credit quantity above its US-dollar
+  equivalent using 25 credits per dollar, with comparable visual emphasis.
+  Keep this separate from banked rate-limit reset opportunities.
+- When `rateLimitResetCredits` confirms one or more available credits, show its
+  count in a read-only, divider-separated popover section. Hide that section
+  when the confirmed available count is zero. Plot each usable reset's
+  expiration as a point on one fixed axis covering the next 30 days; reveal the
+  precise expiration on hover and through accessibility. Color points normally
+  when more than 15 days remain, warning/yellow when more than 7 days remain,
+  and critical/red below 7 days. Omit credits without a plottable
+  expiration instead of guessing. Do not expose a redemption action or
+  interpret missing data as zero.
 - Use returned window durations and reset timestamps instead of hard-coding the
   account's quota structure.
 - Never log account email addresses, tokens, or raw authentication responses.
@@ -398,7 +416,8 @@ Codex App Server.
   - ring diameter, outer and inner stroke widths, ring gap, start angle, and
     background-track opacity;
   - spacing between the indicator and text, plus horizontal padding;
-  - normal, warning, critical, time-ring, and stale-indicator colors;
+  - five-hour remaining-time, weekly remaining-time, normal quota/reset,
+    warning, critical, fallback time-ring, and stale-indicator colors;
   - stale-indicator visibility, size, and placement.
   Clamp every numeric control to a safe rendering range so experimental values
   cannot create a zero-sized or excessively large status item.
@@ -425,15 +444,16 @@ Codex App Server.
   exported configuration.
 
 - [x] Replace or augment the static menu bar symbol with a compact progress
-  indicator that visualizes the most constrained window's remaining quota.
+  indicator that visualizes a recently active five-hour window, then the most
+  constrained window's remaining quota.
   Keep the numeric percentage visible so the state is not communicated by
   shape or color alone.
 - [x] Localize the complete UI into English (`en`), Simplified Chinese
   (`zh-Hans`), and Traditional Chinese (`zh-Hant`). Move user-facing strings to
   a String Catalog, remove hard-coded Chinese strings from Swift source, and
   allow language selection inside the app with a system-default option.
-- [x] Expand each quota window in the popover with two directly comparable
-  progress bars on the same scale and in the same direction:
+- [x] Present each quota window in the popover with two directly comparable
+  concentric rings on the same scale and in the same direction:
   - remaining quota percentage;
   - remaining time percentage before reset.
 - [x] Add a consumption-pace status for every window. Calculate it from API
@@ -470,10 +490,9 @@ Codex App Server.
 
 - [x] Display available **Codex rate-limit reset opportunities** from
   `rateLimitResetCredits` in the existing `account/rateLimits/read` response.
-  Show `availableCount` in the details popover and, when supplied by the
-  backend, each available reset's title, description, grant time, and expiration
-  time. Show a minute-updated remaining-lifetime progress bar when the backend
-  provides a valid grant-to-expiration interval. Treat a `null` summary or
+  Show `availableCount` in the details popover and plot each usable reset's
+  expiration on a single fixed 30-day timeline when supplied by the backend.
+  Treat a `null` summary or
   missing detail rows as unavailable information, not as a confirmed zero
   balance, and distinguish banked resets from purchased credits and automatic
   quota-window resets. Refresh this state with the normal quota request,

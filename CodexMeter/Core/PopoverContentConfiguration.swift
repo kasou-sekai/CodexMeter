@@ -78,10 +78,25 @@ struct PopoverContentConfiguration: Codable, Equatable, Sendable {
         sectionOrder.swapAt(sourceIndex, destinationIndex)
     }
 
-    func selectedMenuBarWindow(from windows: [CodexUsageWindow]) -> CodexUsageWindow? {
+    func selectedMenuBarWindow(
+        from windows: [CodexUsageWindow],
+        prefersFiveHourWindow: Bool = false,
+        criticalRotationIndex: Int = 0
+    ) -> CodexUsageWindow? {
         if let menuBarQuotaWindowID,
            let selected = windows.first(where: { $0.historyID == menuBarQuotaWindowID }) {
             return selected
+        }
+
+        let criticalWindows = windows.filter { $0.remainingPercent < 10 }
+        if !criticalWindows.isEmpty {
+            let index = max(0, criticalRotationIndex) % criticalWindows.count
+            return criticalWindows[index]
+        }
+
+        if prefersFiveHourWindow,
+           let fiveHour = windows.first(where: { $0.windowDurationMins == 5 * 60 }) {
+            return fiveHour
         }
         return windows.min { $0.remainingPercent < $1.remainingPercent }
     }

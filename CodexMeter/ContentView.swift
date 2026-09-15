@@ -10,7 +10,7 @@ struct ContentView: View {
     @State private var maximumPopoverHeight = PopoverLayoutMetrics.initialMaximumHeight
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             header
                 .layoutPriority(1)
 
@@ -22,8 +22,8 @@ struct ContentView: View {
             bottomControls
                 .layoutPriority(1)
         }
-        .padding(16)
-        .frame(width: 380)
+        .padding(14)
+        .frame(width: 360)
         .frame(maxHeight: maximumPopoverHeight)
         .fixedSize(horizontal: false, vertical: true)
         .background {
@@ -228,6 +228,14 @@ struct ContentView: View {
         settings.popoverContent.visibleQuotaWindows(from: service.windows)
     }
 
+    private var resetCreditsSummary: CodexRateLimitResetCreditsSummary? {
+        guard let summary = service.rateLimitResetCredits,
+              summary.hasAvailableCredits else {
+            return nil
+        }
+        return summary
+    }
+
     private var displayedSections: [PopoverContentSection] {
         settings.popoverContent.sectionOrder.filter { section in
             guard settings.popoverContent.isSectionVisible(section) else { return false }
@@ -236,7 +244,7 @@ struct ContentView: View {
             case .quotaWindows:
                 return !visibleQuotaWindows.isEmpty
             case .resetCredits:
-                return service.rateLimitResetCredits != nil
+                return resetCreditsSummary != nil
             case .quotaHistory, .tokenActivity:
                 return true
             }
@@ -262,11 +270,12 @@ struct ContentView: View {
         case .quotaWindows:
             usageView
         case .resetCredits:
-            if let summary = service.rateLimitResetCredits {
+            if let summary = resetCreditsSummary {
                 ResetCreditsSection(
                     summary: summary,
                     appearance: settings.developerAppearance
                 )
+                .id(settings.language.rawValue)
             }
         case .quotaHistory:
             Button(action: openHistoryWindow) {
@@ -284,20 +293,22 @@ struct ContentView: View {
     private var usageView: some View {
         // Update countdowns and pace locally every minute without another API call.
         TimelineView(.periodic(from: Date(), by: 60)) { context in
-            VStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 6) {
                 ForEach(visibleQuotaWindows) { window in
                     UsageWindowRow(
                         window: window,
                         now: context.date,
                         appearance: settings.developerAppearance
                     )
+                }
 
-                    if window.id != visibleQuotaWindows.last?.id {
-                        Divider()
-                    }
+                if let credits = service.purchasedCredits {
+                    PurchasedCreditsView(snapshot: credits)
                 }
             }
+            .frame(maxWidth: .infinity)
         }
+        .id(settings.language.rawValue)
     }
 
     private var menuQuotaSection: some View {
@@ -576,30 +587,22 @@ private struct ResetCreditsSection: View {
     private func content(at date: Date) -> some View {
         let usableCredits = summary.usableCredits(at: date)
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Label(
-                    L10n.string("reset_credits.title"),
-                    systemImage: "arrow.counterclockwise.circle"
-                )
-                .font(.subheadline.weight(.semibold))
-
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(L10n.string("reset_credits.title"))
+                    .font(.subheadline.weight(.semibold))
                 Spacer()
-
                 Text(countText)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(summary.hasAvailableCredits ? .primary : .secondary)
-            }
-
-            ForEach(usableCredits) { credit in
-                resetCreditDetail(credit, at: date)
-            }
-
-            if summary.hasAvailableCredits, usableCredits.isEmpty {
-                Text(L10n.string("reset_credits.details_unavailable"))
-                    .font(.caption2)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+
+            ResetCreditsTimeline(
+                credits: usableCredits,
+                now: date,
+                appearance: appearance,
+                colorScheme: colorScheme
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -611,56 +614,86 @@ private struct ResetCreditsSection: View {
         return L10n.format("reset_credits.available_format", summary.availableCount)
     }
 
-    private func resetCreditDetail(
-        _ credit: CodexRateLimitResetCredit,
-        at date: Date
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if let expiresAt = credit.expiresAt {
-                if let remainingFraction = credit.remainingLifetimeFraction(at: date) {
-                    ProgressView(value: remainingFraction)
-                        .progressViewStyle(.linear)
-                        .tint(lifetimeTint(for: credit, at: date))
-                        // Recreate the native progress control after an
-                        // appearance switch so AppKit keeps the intended tint.
-                        .id(colorScheme)
-                        .accessibilityLabel(L10n.string("reset_credits.title"))
-                        .accessibilityValue(
-                            L10n.format(
-                                "reset_credits.expires_format",
-                                L10n.formattedDateTime(expiresAt)
-                            )
-                        )
-                }
+}
 
-                Label(
-                    L10n.format(
-                        "reset_credits.expires_format",
-                        L10n.formattedDateTime(expiresAt)
-                    ),
-                    systemImage: "clock"
-                )
-            } else {
-                Label(
-                    L10n.string("reset_credits.no_expiration"),
-                    systemImage: "clock"
-                )
-            }
-        }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
+/// Places reset-card expirations on one fixed axis covering the next 30 days.
+private struct ResetCreditsTimeline: View {
+    let credits: [CodexRateLimitResetCredit]
+    let now: Date
+    let appearance: MenuBarAppearance
+    let colorScheme: ColorScheme
+
+    private let duration: TimeInterval = 30 * 24 * 60 * 60
+
+    private var endDate: Date {
+        now.addingTimeInterval(duration)
     }
 
-    private func lifetimeTint(
-        for credit: CodexRateLimitResetCredit,
-        at date: Date
-    ) -> Color {
-        switch credit.lifetimeAttentionLevel(at: date) {
-        case .normal, .none:
+    private var plottedCredits: [CodexRateLimitResetCredit] {
+        credits.filter { credit in
+            guard let expiresAt = credit.expiresAt else { return false }
+            return expiresAt >= now && expiresAt <= endDate
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.tertiary)
+                        .frame(height: 2)
+                        .position(x: proxy.size.width / 2, y: 14)
+
+                    ForEach(plottedCredits) { credit in
+                        if let expiresAt = credit.expiresAt {
+                            Circle()
+                                .fill(tint(for: credit))
+                                .overlay(Circle().stroke(.background, lineWidth: 2))
+                                .frame(width: 10, height: 10)
+                                .position(
+                                    x: xPosition(for: expiresAt, width: proxy.size.width),
+                                    y: 14
+                                )
+                                .help(L10n.format(
+                                    "reset_credits.expires_format",
+                                    L10n.formattedDateTime(expiresAt)
+                                ))
+                                .accessibilityLabel(
+                                    credit.title ?? L10n.string("reset_credits.title")
+                                )
+                                .accessibilityValue(L10n.format(
+                                    "reset_credits.expires_format",
+                                    L10n.formattedDateTime(expiresAt)
+                                ))
+                        }
+                    }
+                }
+            }
+            .frame(height: 28)
+
+            HStack {
+                Text(L10n.formattedShortDate(now))
+                Spacer()
+                Text(L10n.formattedShortDate(endDate))
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func xPosition(for date: Date, width: CGFloat) -> CGFloat {
+        let fraction = date.timeIntervalSince(now) / duration
+        return min(width - 5, max(5, width * fraction))
+    }
+
+    private func tint(for credit: CodexRateLimitResetCredit) -> Color {
+        switch credit.expirationAttentionLevel(at: now) {
+        case .normal:
             appearance.normalColor.swiftUIColor(for: colorScheme)
         case .warning:
             appearance.warningColor.swiftUIColor(for: colorScheme)
-        case .critical:
+        case .critical, .none:
             appearance.criticalColor.swiftUIColor(for: colorScheme)
         }
     }
@@ -822,7 +855,11 @@ private struct SettingsSection: View {
     }
 }
 
-/// Displays quota and time on the same 0...100 scale for direct comparison.
+private enum CompactMetricLayout {
+    static let height: CGFloat = 101
+}
+
+/// Displays quota and reset time as a compact pair of concentric rings.
 private struct UsageWindowRow: View {
     let window: CodexUsageWindow
     let now: Date
@@ -830,81 +867,74 @@ private struct UsageWindowRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(window.name)
-                    .font(.subheadline.weight(.semibold))
+        VStack(spacing: 2) {
+            ZStack {
+                ring(value: Double(window.remainingPercent), lineWidth: 6, tint: quotaTint)
+                    .frame(width: 62, height: 62)
 
-                Spacer()
-
-                paceLabel
-            }
-
-            MetricBar(
-                label: L10n.string("quota.remaining"),
-                value: Double(window.remainingPercent),
-                tint: quotaTint,
-                symbol: "battery.75percent"
-            )
-
-            MetricBar(
-                label: L10n.string("time.remaining"),
-                value: window.remainingTimePercent(at: now),
-                tint: appearance.timeColor.swiftUIColor(for: colorScheme),
-                symbol: "clock"
-            )
-
-            HStack {
-                if let resetsAt = window.resetsAt {
-                    Label(
-                        L10n.format(
-                            "quota.reset_remaining_format",
-                            L10n.remainingDuration(until: resetsAt, from: now)
-                        ),
-                        systemImage: "hourglass"
+                if let remainingTime = window.remainingTimePercent(at: now) {
+                    ring(
+                        value: remainingTime,
+                        lineWidth: 6,
+                        tint: appearance.timeColor(
+                            forDurationMins: window.windowDurationMins
+                        ).swiftUIColor(for: colorScheme)
                     )
-                } else {
-                    Label(L10n.string("quota.reset_unavailable"), systemImage: "hourglass")
+                    .frame(width: 47, height: 47)
                 }
 
-                Spacer()
-
-                if let resetsAt = window.resetsAt {
-                    Text(L10n.format(
-                        "quota.reset_format",
-                        L10n.formattedDateTime(resetsAt)
-                    ))
-                }
+                Text("\(window.remainingPercent)%")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded).monospacedDigit())
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+
+            Text(windowLabel)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .padding(.top, 4)
+
+            if let resetsAt = window.resetsAt {
+                Text(L10n.remainingDuration(until: resetsAt, from: now))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.vertical, 4)
+        .frame(width: 104, height: CompactMetricLayout.height, alignment: .top)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(windowLabel)
+        .accessibilityValue(accessibilityValue)
     }
 
-    @ViewBuilder
-    private var paceLabel: some View {
-        switch window.pace(at: now) {
-        case .onTrack:
-            Label(L10n.string("pace.on_track"), systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .help(paceHelpText)
-        case .overPace:
-            Label(L10n.string("pace.over"), systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .help(paceHelpText)
-        case .unavailable:
-            Label(L10n.string("pace.unavailable"), systemImage: "questionmark.circle")
-                .foregroundStyle(.secondary)
-                .help(L10n.string("pace.unavailable_help"))
+    private func ring(value: Double, lineWidth: CGFloat, tint: Color) -> some View {
+        ZStack {
+            Circle().stroke(tint.opacity(0.16), lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: min(1, max(0, value / 100)))
+                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
         }
     }
 
-    private var paceHelpText: String {
-        guard let delta = window.paceDelta(at: now) else {
-            return L10n.string("pace.unavailable_help")
+    private var accessibilityValue: String {
+        var value = "\(window.remainingPercent)% \(L10n.string("quota.remaining"))"
+        if let resetsAt = window.resetsAt {
+            value += ", " + L10n.format(
+                "quota.reset_remaining_format",
+                L10n.remainingDuration(until: resetsAt, from: now)
+            )
         }
-        return L10n.format("pace.delta_format", delta)
+        return value
+    }
+
+    private var windowLabel: String {
+        switch window.windowDurationMins {
+        case 5 * 60:
+            L10n.string("quota.window.five_hour_limit")
+        case 7 * 24 * 60:
+            L10n.string("quota.window.weekly_limit")
+        default:
+            window.name
+        }
     }
 
     private var quotaTint: Color {
@@ -916,30 +946,64 @@ private struct UsageWindowRow: View {
     }
 }
 
-private struct MetricBar: View {
-    let label: String
-    let value: Double?
-    let tint: Color
-    let symbol: String
-    @Environment(\.colorScheme) private var colorScheme
+/// Shows the two equally important forms of a purchased credit balance.
+private struct PurchasedCreditsView: View {
+    let snapshot: CodexPurchasedCreditsSnapshot
 
     var body: some View {
-        VStack(spacing: 5) {
-            HStack {
-                Label(label, systemImage: symbol)
-                Spacer()
-                Text(value.map { "\(Int($0.rounded()))%" } ?? "—")
-                    .monospacedDigit()
-            }
-            .font(.caption)
+        VStack(spacing: 2) {
+            Spacer(minLength: 0)
 
-            ProgressView(value: value ?? 0, total: 100)
-                .tint(tint)
-                // AppKit reuses this native control across appearance changes
-                // and can reset its tint. Recreate it so SwiftUI reapplies tint.
-                .id(colorScheme)
-                .opacity(value == nil ? 0.25 : 1)
+            Text(dollarText)
+                .font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
+                .minimumScaleFactor(0.65)
+                .lineLimit(1)
+
+            Text(creditText)
+                .font(.system(size: 16, weight: .medium, design: .rounded).monospacedDigit())
+                .minimumScaleFactor(0.65)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            Text(L10n.string("credits.balance_label"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
-        .accessibilityElement(children: .combine)
+        .frame(width: 104, height: CompactMetricLayout.height, alignment: .top)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.string("credits.title"))
+        .accessibilityValue("\(dollarText), \(creditText), \(L10n.string("credits.balance_label"))")
+    }
+
+    private var creditText: String {
+        if snapshot.unlimited {
+            return "∞"
+        }
+        let amount = snapshot.balance.map { decimalString($0) } ?? "0"
+        return amount
+    }
+
+    private var dollarText: String {
+        if snapshot.unlimited {
+            return L10n.string("credits.unlimited")
+        }
+        let amount = snapshot.dollarBalance.map {
+            "$" + decimalString($0, maximumFractionDigits: 2)
+        } ?? "$0"
+        return amount
+    }
+
+    private func decimalString(
+        _ value: Decimal,
+        maximumFractionDigits: Int = 0
+    ) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = L10n.locale
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = maximumFractionDigits
+        return formatter.string(from: value as NSDecimalNumber) ?? "0"
     }
 }

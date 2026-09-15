@@ -147,6 +147,41 @@ final class RateLimitResetCreditsTests: XCTestCase {
         )
     }
 
+    func testExpirationAttentionUsesFifteenAndSevenDayThresholds() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let summary = try XCTUnwrap(try decode(#"""
+        {
+            "rateLimitResetCredits": {
+                "availableCount": 1,
+                "credits": [{
+                    "id": "expiration-thresholds",
+                    "grantedAt": 1800000000,
+                    "expiresAt": 1802592000,
+                    "resetType": "codexRateLimits",
+                    "status": "available"
+                }]
+            }
+        }
+        """#))
+        let credit = try XCTUnwrap(summary.credits?.first)
+
+        XCTAssertEqual(credit.expirationAttentionLevel(at: now), .normal)
+        XCTAssertEqual(
+            credit.expirationAttentionLevel(at: now.addingTimeInterval(15 * 24 * 60 * 60)),
+            .warning
+        )
+        XCTAssertEqual(
+            credit.expirationAttentionLevel(at: now.addingTimeInterval(23 * 24 * 60 * 60)),
+            .warning
+        )
+        XCTAssertEqual(
+            credit.expirationAttentionLevel(
+                at: now.addingTimeInterval(23 * 24 * 60 * 60 + 1)
+            ),
+            .critical
+        )
+    }
+
     func testUnknownBackendEnumValuesRemainForwardCompatible() throws {
         let summary = try XCTUnwrap(try decode(#"""
         {

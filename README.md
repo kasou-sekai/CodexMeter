@@ -175,7 +175,7 @@ CodexMeter currently discovers `codex` in these locations:
 Clone the repository:
 
 ```bash
-git clone git@github.com:raycalrui/CodexMeter.git
+git clone git@github.com:kasou-sekai/CodexMeter.git
 cd CodexMeter
 open CodexMeter.xcodeproj
 ```

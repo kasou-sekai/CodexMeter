@@ -13,6 +13,7 @@ sparkle_bin_directory="$3"
 release_channel="${4:-}"
 project_directory="${0:A:h:h}"
 generate_appcast="$sparkle_bin_directory/generate_appcast"
+repository_slug="kasou-sekai/CodexMeter"
 
 if [[ ! -f "$archive_path" ]]; then
     echo "Update archive not found: $archive_path" >&2
@@ -48,9 +49,9 @@ for notes_extension in html md txt; do
 done
 
 arguments=(
-    --download-url-prefix "https://github.com/raycalrui/CodexMeter/releases/download/${release_tag}/"
-    --full-release-notes-url "https://github.com/raycalrui/CodexMeter/releases/tag/${release_tag}"
-    --link "https://github.com/raycalrui/CodexMeter/releases/tag/${release_tag}"
+    --download-url-prefix "https://github.com/${repository_slug}/releases/download/${release_tag}/"
+    --full-release-notes-url "https://github.com/${repository_slug}/releases/tag/${release_tag}"
+    --link "https://github.com/${repository_slug}/releases/tag/${release_tag}"
     --maximum-deltas 0
     -o "$project_directory/appcast.xml"
 )

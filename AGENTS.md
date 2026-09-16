@@ -15,7 +15,7 @@ remaining Codex account quota without requiring the user to open Codex.
 ## Version baseline
 
 - Version 1.0 (build 1) is the first accepted usable release baseline. The
-  current released version is 1.5.5 (build 20).
+  current release version is 1.6.0 (build 21).
 - Keep source comments in English and reserve them for non-obvious architecture,
   protocol, state, permission, and calculation behavior. Do not narrate obvious
   Swift syntax line by line.
@@ -76,7 +76,10 @@ has changed.
   refresh/freshness state. Build a deterministic child-process `PATH` from the
   selected Codex executable directory plus common local package locations so
   npm-installed launchers can find Node without invoking a login shell. Always
-  drain both stdout and stderr, retain only a bounded in-memory diagnostic tail,
+  discover Codex installed under NVM version directories as well as the stable
+  local, Homebrew, and npm-global locations. Prefer stable direct locations
+  before selecting the newest executable NVM installation. Always drain both
+  stdout and stderr, retain only a bounded in-memory diagnostic tail,
   detach file-handle callbacks at EOF or process termination, and close retained
   handles during teardown so pipe readiness cannot create a CPU spin loop.
   Bound stdout reads to 64 KiB and each JSON-RPC line to 1 MiB with main-queue
@@ -115,9 +118,8 @@ has changed.
 - `Core/MenuBarAppearance.swift` contains bounded, codable appearance values and
   deterministic developer preview fixtures, including custom quota/time values.
   `DeveloperOptionsView.swift` provides live appearance tuning without touching
-  account data. Present it in
-  its own `Window` scene because a sheet attached to `MenuBarExtra(.window)` is
-  dismissed as soon as the status-item window loses focus.
+  account data. Embed it in the shared settings window because a sheet attached
+  to `MenuBarExtra(.window)` disappears when the status item loses focus.
 - `Core/PopoverContentConfiguration.swift` stores presentation-only popover
   visibility, ordering, per-quota-window choices, and the stable quota identity
   used by the menu bar indicator. The default layout shows the standard
@@ -131,8 +133,14 @@ has changed.
   Quota History separately defaults to the standard
   `codex` weekly bucket.
   `PopoverCustomizationView.swift` presents these controls and a live preview in
-  an independent Window so picker and button interactions survive popover focus
-  changes. Hidden sections must continue refreshing and recording history.
+  the Menu Bar & Popover settings category. Hidden sections must continue
+  refreshing and recording history.
+- `AppSettingsView.swift` owns one resizable settings window with General,
+  Menu Bar & Popover, History & Backup, and Developer categories. The menu bar
+  Settings row opens this window directly; do not expand settings inline.
+  About is the final sidebar category and embeds About/update content in the
+  settings detail pane. History & Backup uses the same grouped Form as General.
+  Usage History also retains its separate window.
 - `AppSettings.swift` persists in-app language, app appearance, menu bar,
   popover content, notification, threshold, launch-at-login, and separately
   namespaced developer preferences. App appearance defaults to following the
@@ -337,7 +345,7 @@ Codex App Server.
 - Compile-only builds may disable code signing, but notification and
   `SMAppService` testing must use a signed build (Xcode's "Sign to Run Locally"
   is sufficient for local development).
-- Version 1.5.5 is distributed with an ad-hoc signature and no notarization
+- Version 1.6.0 is distributed with an ad-hoc signature and no notarization
   because no valid Apple signing identity was available at release time. Do not
   describe it as Apple Development or Developer ID signed. Replace this with a
   Developer ID and notarized workflow before claiming frictionless distribution.
@@ -528,7 +536,7 @@ Codex App Server.
   and similar system indicators later as separate modules rather than bundling
   them into the first network-speed release.
 
-- [ ] Add a lossless **CodexMeter Backup** export and restore workflow for
+- [x] Add a lossless **CodexMeter Backup** export and restore workflow for
   moving all local history to another Mac. Use a versioned
   `.codexmeterbackup` archive rather than treating CSV as a database backup.
   Create a transactionally consistent SQLite snapshot with the SQLite backup
@@ -550,6 +558,18 @@ Codex App Server.
   multi-account isolation, and successful migration to a fresh Mac. Keep CSV
   export as a separate human-readable feature; CSV import is not required for
   this lossless restore workflow.
+  Implemented as a versioned binary property-list container with a 512 MiB
+  import limit. `HistoryBackupView` is embedded in History & Backup settings. SQLite
+  backup copies committed WAL pages and switches the snapshot to DELETE mode
+  before archiving it. Restore uses SQLite's atomic backup transaction to
+  replace the contents of the open database, validates and migrates it, and
+  saves the salt before allowing a fresh launch. All store access is blocked
+  after successful restore until the app is reopened. A persisted rollback
+  journal restores the old database and salt after interrupted restores before
+  settings/account initialization. Recovery archives remain in `Backups`.
+  Core backup/restore tests and the Debug build pass. The user has checked the
+  settings layout; native backup file-panel UI still needs manual smoke testing
+  because automated app UI inspection timed out during implementation.
 
 - [x] Add an **Observed quota consumed** summary for the currently selected
   quota window and visible date interval. Sum the monotonic remaining-quota
@@ -599,10 +619,10 @@ Codex App Server.
   - [ ] Complete the remaining visual and data-presentation redesign after its
     requirements are specified.
 
-- [x] Expand the Settings disclosure hit target so clicking the gear icon,
-  localized Settings label, or the surrounding row opens and closes the
-  section. Keep the visual layout compact, but provide a comfortable pointer
-  target instead of requiring a click on the small disclosure symbol.
+- [x] Make the entire Settings row open one categorized settings window.
+  Consolidate general, menu-bar/popover, history/backup, and developer controls
+  while preserving existing preference keys and values. Embed About/update
+  information as the final sidebar category.
 - [x] Add a lightweight periodic refresh and visibly mark stale data when the
   Codex service is unavailable. Continue responding immediately to App Server
   rate-limit update notifications.

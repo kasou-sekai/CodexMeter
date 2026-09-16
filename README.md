@@ -5,7 +5,7 @@ visible at a glance.
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
 ![Swift](https://img.shields.io/badge/Swift-5-orange)
-![Version](https://img.shields.io/badge/version-1.5.5-blue)
+![Version](https://img.shields.io/badge/version-1.6.0-blue)
 
 > [!NOTE]
 > CodexMeter is an unofficial community project. It is not affiliated with or
@@ -167,6 +167,7 @@ CodexMeter currently discovers `codex` in these locations:
 /opt/homebrew/bin/codex
 /usr/local/bin/codex
 ~/.npm-global/bin/codex
+~/.nvm/versions/node/*/bin/codex
 ```
 
 ## Build and Run
@@ -190,7 +191,7 @@ the quota indicator in the macOS menu bar after launch.
 
 ## Download and Install
 
-Download `CodexMeter-1.5.5.dmg` from the GitHub Releases page, open it, and drag
+Download `CodexMeter-1.6.0.dmg` from the GitHub Releases page, open it, and drag
 CodexMeter into the Applications folder.
 
 The downloadable build uses an ad-hoc signature and is not notarized. On first
@@ -257,8 +258,8 @@ the login Keychain, signs the archive metadata, and updates the repository's
 
 ```bash
 Scripts/prepare_sparkle_update.sh \
-  v1.5.5 \
-  /path/to/CodexMeter-1.5.5.dmg \
+  v1.6.0 \
+  /path/to/CodexMeter-1.6.0.dmg \
   /path/to/Sparkle/bin
 ```
 
@@ -295,11 +296,33 @@ App Sandbox is currently disabled because CodexMeter must launch the user's
 local Codex executable. This should be reviewed deliberately before any future
 Mac App Store distribution.
 
+## Full history backup and restore
+
+The menu-bar **Settings** entry opens one resizable window with four categories:
+General, Menu Bar & Popover, History & Backup, and Developer, followed by About.
+Existing preferences are preserved. About/update information opens in the same
+settings window; Usage History remains a separate window.
+
+Open **Settings → History & Backup → Backup & Restore** to export a `.codexmeterbackup` file.
+It includes all retained quota and token history across accounts, database
+metadata, and the local identity salt needed to match accounts on another Mac.
+It does not contain login credentials, email addresses, or app preferences.
+Keep this file private. Previously deleted or retention-pruned records cannot
+be recovered. CSV remains a separate readable export format.
+
+Restore replaces all local history after confirmation. CodexMeter validates the
+archive version, SHA-256 checksum, database integrity, schema, and row counts,
+then saves the existing history in `~/Library/Application Support/CodexMeter/Backups`.
+Quit and reopen the app after restoring; history writes pause until then.
+Your existing retention preference applies after reopening. An interrupted
+restore is rolled back before account activation at the next launch.
+Backups larger than 512 MiB are currently unsupported.
+
 ## Known Limitations
 
 - Codex App Server is experimental and may change without notice.
-- Codex executable discovery currently uses a fixed list of common install
-  locations rather than the interactive shell's `PATH`.
+- Codex executable discovery uses common stable install locations and installed
+  NVM Node versions rather than the interactive shell's `PATH`.
 - Notification and launch-at-login behavior must be tested with a signed build.
 - Token activity is optional and may be unavailable for API-key, Bedrock, or
   other account types even when quota windows are available.
